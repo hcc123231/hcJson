@@ -308,8 +308,8 @@ std::unique_ptr<JsonValue> Parser::parseObject(){
             std::unique_ptr<JsonValue> value=parseValue();
             obj[key]=std::move(value);
         }while(_curToken.getValue()!="}"&&(consume(","),true));
-        consume("}");
     }
+    consume("}");
     return std::make_unique<JsonValue>(std::move(obj));
 }
 std::unique_ptr<JsonValue> Parser::parseArray(){
