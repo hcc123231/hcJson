@@ -144,7 +144,7 @@ std::string TokenAnalyzer::extractNumber(){
     //指数部分
     if(!outRange()&&(_jsonStr[_pos]=='e'||_jsonStr[_pos]=='E')){
         positionAdd();
-        if(!outRange()&&_jsonStr[_pos]=='-'){
+        if(!outRange()&&(_jsonStr[_pos]=='-'||_jsonStr[_pos]=='+'){
             positionAdd();
         }
         while(!outRange()&&isdigit(_jsonStr[_pos]))positionAdd();
