@@ -240,7 +240,7 @@ int main(){
 
     //------------------------------------------------------------
     //这是反序列化案例
-    hcc::JsonObject obj_son1{};
+    /*hcc::JsonObject obj_son1{};
     hcc::JsonArray arr1{};
     arr1.push_back(hcc::JsonValue());
     arr1.push_back(true);
@@ -263,7 +263,7 @@ int main(){
     obj_root["field2"]=std::move(arr2);
     
 
-    hcc::JsonRoot root=std::move(obj_root);
+    hcc::JsonRoot root=std::move(obj_root);*/
     //0x2d66b093f20
 
     /*std::cout<<"n:"<<hcc::globalMemPool.blocks.size()<<'\n';
@@ -280,7 +280,7 @@ int main(){
     auto elapsed = std::chrono::duration<double, std::milli>(end - start).count();
     std::cout << "Elapsed: " << elapsed << " ms\n";
 
-    std::string s=root.toJson();
-    std::cout<<s<<'\n';
+    /*std::string s=root.toJson();
+    std::cout<<s<<'\n';*/
     return 0;
 }

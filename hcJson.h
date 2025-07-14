@@ -15,6 +15,7 @@
 在toJson函数调用后谨慎使用JsonRoot
 */
 namespace hcc{
+    
     void callerInfo(int line);
     #define PRINT_CALL_INFO() callerInfo(__LINE__)
     class JsonObject;
@@ -23,8 +24,7 @@ namespace hcc{
     using Array = std::vector<std::unique_ptr<JsonValue>>;
     using Object = std::unordered_map<std::string, std::unique_ptr<JsonValue>>;
     
-    class memPool{
-        
+    class MemPool{
     public:
         static constexpr size_t blockSize=64*1024;
         struct Block{
@@ -35,11 +35,31 @@ namespace hcc{
         char* ptr=nullptr;
         char* end=nullptr;
     public:
+        MemPool()=default;
+        MemPool(MemPool&& oth):blocks(std::move(oth.blocks)),
+          ptr(oth.ptr),
+          end(oth.end){
+            oth.ptr = nullptr;
+            oth.end = nullptr;
+        }
+        MemPool& operator=(MemPool&& oth)noexcept{
+            if(this!=&oth){
+                blocks=std::move(oth.blocks);
+                ptr=oth.ptr;
+                end=oth.end;
+                oth.ptr=nullptr;
+                oth.end=nullptr;
+            }
+            return *this;
+        }
+    public:
         void* alloc(size_t n);
         void reset();
     };
-    static memPool globalMemPool;
-
+    //MemPool globalMemPool;
+    /*inline MemPool parseMemPool{};
+    inline MemPool generateMemPool{};
+    inline MemPool globalMemPool=std::move(generateMemPool);*/
     class JsonObject{
         friend class JsonValue;
         friend class JsonArray;
@@ -121,7 +141,7 @@ namespace hcc{
         explicit JsonValue(bool value);
         explicit JsonValue(int value);
         explicit JsonValue(double value);
-        explicit JsonValue(std::string value);
+        explicit JsonValue(std::string& value);
         explicit JsonValue(const char* s);
         explicit JsonValue(Array value);
         explicit JsonValue(Object value);
@@ -138,7 +158,7 @@ namespace hcc{
         void operator=(JsonObject&& value);
         void operator=(JsonArray&& value);
         void operator=(JsonValue&& value);
-        void* operator new(size_t size){return globalMemPool.alloc(size);}
+        void* operator new(size_t size);
         void operator delete(void*){}
     public:
         bool isNull()const{return std::holds_alternative<std::monostate>(_value);}
@@ -228,7 +248,7 @@ namespace hcc{
         std::string_view _jsonStr;
         size_t _pos;//记录当前位置
     public:
-        explicit TokenAnalyzer(std::string_view str);
+        explicit TokenAnalyzer(const std::string_view& str);
         TokenAnalyzer()=default;
         ~TokenAnalyzer();
     public:

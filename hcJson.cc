@@ -4,13 +4,19 @@
 #include<stdexcept>
 #include <sstream>
 #include<fstream>
-using namespace hcc;
 
+
+
+hcc::MemPool parseMemPool{};
+hcc::MemPool generateMemPool{};
+hcc::MemPool globalMemPool{std::move(generateMemPool)};
+using namespace hcc;
+void* JsonValue::operator new(size_t size){return globalMemPool.alloc(size);}
 JsonValue::JsonValue():_value{std::monostate{}}{}
 JsonValue::JsonValue(bool value):_value{value}{}
 JsonValue::JsonValue(int value):_value{value}{}
 JsonValue::JsonValue(double value):_value{value}{}
-JsonValue::JsonValue(std::string value):_value{value}{}
+JsonValue::JsonValue(std::string& value):_value{value}{}
 JsonValue::JsonValue(const char* s):_value{std::string{s}}{}
 JsonValue::JsonValue(Array value):_value{std::move(value)}{}
 JsonValue::JsonValue(Object value):_value{std::move(value)}{}
@@ -32,7 +38,7 @@ void JsonValue::operator=(JsonValue&& value){
     _value=std::move(value._value);
 }
 JsonValue::~JsonValue()=default;
-TokenAnalyzer::TokenAnalyzer(std::string_view str):_jsonStr{str},_pos{0}{}
+TokenAnalyzer::TokenAnalyzer(const std::string_view& str):_jsonStr{str},_pos{0}{}
 void TokenAnalyzer::operator=(const std::string_view& str){
     _jsonStr=str;
     _pos=0;
@@ -74,7 +80,7 @@ std::string JsonValue::getTypeString()const{
     }
     return "type error";
 }
-void* memPool::alloc(size_t n){
+void* MemPool::alloc(size_t n){
     n = (n + alignof(max_align_t) - 1)
             & ~(alignof(max_align_t) - 1);
         if (ptr + n > end) {
@@ -87,7 +93,7 @@ void* memPool::alloc(size_t n){
         //std::cout<<"alloc vector size:"<<blocks.size()<<'\n';
         return ret;
 }
-void memPool::reset(){
+void MemPool::reset(){
     blocks.clear();
     ptr = end = nullptr;
 }
@@ -238,8 +244,13 @@ Parser::Parser(std::ifstream&& file){
     }
 }
 std::unique_ptr<JsonValue> Parser::parse(){
+    generateMemPool=std::move(globalMemPool);
+    globalMemPool=std::move(parseMemPool);
     globalMemPool.reset();
-    return parseValue();
+    std::unique_ptr<JsonValue> ptr=parseValue();
+    parseMemPool=std::move(globalMemPool);
+    globalMemPool=std::move(generateMemPool);
+    return std::move(ptr);
 }
 //解析json获取值部分
 std::unique_ptr<JsonValue> Parser::parseValue(){
@@ -345,7 +356,7 @@ JsonValue& JsonObject::operator[](const std::string& str){
     auto it = _obj.find(str);
     if (it == _obj.end()) {
         //键不存在就插入一个新的空JsonValue
-        std::cout<<"insert so make_unique\n";
+        //std::cout<<"insert so make_unique\n";
         _obj[str] = std::make_unique<JsonValue>();
         return *_obj[str];
     }
@@ -369,7 +380,9 @@ void JsonRoot::operator=(std::unique_ptr<JsonValue>&& right){
     _root=std::move(right);
 }
 std::string JsonRoot::toJson(){
-    return toJsonFunc(std::move(_root));
+    std::string s=toJsonFunc(std::move(_root));
+    globalMemPool.reset();
+    return s;
 }
 std::string JsonRoot::toJsonFunc(std::unique_ptr<JsonValue> value){
     std::string s;
