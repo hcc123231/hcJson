@@ -23,6 +23,23 @@ namespace hcc{
     using Array = std::vector<std::unique_ptr<JsonValue>>;
     using Object = std::unordered_map<std::string, std::unique_ptr<JsonValue>>;
     
+    class memPool{
+        
+    public:
+        static constexpr size_t blockSize=64*1024;
+        struct Block{
+            alignas(max_align_t) char buf[blockSize];
+            size_t used=0;
+        };
+        std::vector<std::unique_ptr<Block>> blocks;
+        char* ptr=nullptr;
+        char* end=nullptr;
+    public:
+        void* alloc(size_t n);
+        void reset();
+    };
+    static memPool globalMemPool;
+
     class JsonObject{
         friend class JsonValue;
         friend class JsonArray;
@@ -121,6 +138,8 @@ namespace hcc{
         void operator=(JsonObject&& value);
         void operator=(JsonArray&& value);
         void operator=(JsonValue&& value);
+        void* operator new(size_t size){return globalMemPool.alloc(size);}
+        void operator delete(void*){}
     public:
         bool isNull()const{return std::holds_alternative<std::monostate>(_value);}
         bool isBool()const{return std::holds_alternative<bool>(_value);}
@@ -280,6 +299,7 @@ namespace hcc{
         std::unique_ptr<JsonValue> print_value(std::unique_ptr<JsonValue> value,size_t n);
         void pspace_count(size_t n);
     };
+
     
 }
 

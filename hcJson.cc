@@ -74,6 +74,23 @@ std::string JsonValue::getTypeString()const{
     }
     return "type error";
 }
+void* memPool::alloc(size_t n){
+    n = (n + alignof(max_align_t) - 1)
+            & ~(alignof(max_align_t) - 1);
+        if (ptr + n > end) {
+            blocks.emplace_back(std::make_unique<Block>());
+            ptr = blocks.back()->buf;
+            end = ptr + blockSize;
+        }
+        void* ret = ptr;
+        ptr += n;
+        //std::cout<<"alloc vector size:"<<blocks.size()<<'\n';
+        return ret;
+}
+void memPool::reset(){
+    blocks.clear();
+    ptr = end = nullptr;
+}
 Token TokenAnalyzer::getNextToken(){
     skipSpace();//先跳过所有的空白字符
     //再判断此时的_pos是否已经出界
@@ -144,7 +161,7 @@ std::string TokenAnalyzer::extractNumber(){
     //指数部分
     if(!outRange()&&(_jsonStr[_pos]=='e'||_jsonStr[_pos]=='E')){
         positionAdd();
-        if(!outRange()&&(_jsonStr[_pos]=='-'||_jsonStr[_pos]=='+'){
+        if(!outRange()&&(_jsonStr[_pos]=='-'||_jsonStr[_pos]=='+')){
             positionAdd();
         }
         while(!outRange()&&isdigit(_jsonStr[_pos]))positionAdd();
@@ -221,6 +238,7 @@ Parser::Parser(std::ifstream&& file){
     }
 }
 std::unique_ptr<JsonValue> Parser::parse(){
+    globalMemPool.reset();
     return parseValue();
 }
 //解析json获取值部分
@@ -327,6 +345,7 @@ JsonValue& JsonObject::operator[](const std::string& str){
     auto it = _obj.find(str);
     if (it == _obj.end()) {
         //键不存在就插入一个新的空JsonValue
+        std::cout<<"insert so make_unique\n";
         _obj[str] = std::make_unique<JsonValue>();
         return *_obj[str];
     }
