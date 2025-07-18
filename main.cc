@@ -5,13 +5,13 @@
 int main(){
   auto start = std::chrono::steady_clock::now();
   //这是序列化测试案例
-  std::string json=R"({
+  /*std::string json=R"({
   "meta": {
     "schemaVersion": "4.2.0-RC3",
     "generatedUtc": "2025-07-13T21:08:55.000Z",
     "checksum": "a1b2c3d4e5f6789ab",
     "source": {
-      "type": "generator",
+      "type": "genera\ntor",
       "version": "1.0.0",
       "options": {
         "locale": "en-US",
@@ -229,8 +229,122 @@ int main(){
       }
     ]
   }
+})";*/
+
+
+std::string json=R"({
+  "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+  "meta": {
+    "created": "2025-07-18T14:33:27.142Z",
+    "lastEvent": 1750246407183,
+    "version": [2, 5, 0, "rc.4"],
+    "authors": [
+      { "name": "5434", "email": "ivanov@example.com", "lang": "ru-RU" },
+      { "name": "teggd", "email": "yamada@example.jp", "lang": "ja-JP" }
+    ],
+    "tags": { "main": ["complex", "deep"], "extra": null }
+  },
+  "config": {
+    "features": {
+      "regex": "^(?=(.*[A-Z]){2,})(?=(.*\\d){3,})(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{12,}$",
+      "nested": {
+        "level1": {
+          "level2": {
+            "level3": {
+              "uuidMap": {
+                "550e8400-e29b-41d4-a716-446655440000": { "weight": 3.141592653589793 },
+                "6ba7b810-9dad-11d1-80b4-00c04fd430c8": { "weight": 2.718281828459045 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "flags": [true, false, true, null, false],
+    "geo": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [139.6917, 35.6895, 42.6]
+          },
+          "properties": {
+            "name": "Tokyo Tower",
+            "images": [
+              {
+                "type": "jpg",
+                "data": "/9j/4AAQSkZJRgABAQAAAQ...==",
+                "size": 83750
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "i18n": {
+      "en": { "title": "Complex JSON Example", "desc": "An extremely convoluted JSON document." },
+      "zh-Hans": { "title": "SON", "desc": "JSON" }
+    }
+  },
+  "data": {
+    "matrix": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "hugeInt": 1234567890123456789012345678901234567890,
+    "floats": { "positive": 1e+42, "negative": -1.23e-45, "nan": "NaN", "inf": "Infinity" },
+    "bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "blob": {
+        "$type": "base64",
+        "$value": "H4sIAI2/ZW4C/8tIzcnJBwCGphA2BQAAAA=="
+      }
+    },
+    "selfRef": { "$ref": "#/meta/authors/0" },
+    "circular": {
+      "a": { "b": { "c": null } }
+    }
+  },
+  "extensions": {
+    "x-custom-telemetry": {
+      "events": [
+        { "t": 1750246407183, "type": "click", "pos": [1024, 768] },
+        { "t": 1750246408199, "type": "keydown", "key": "Escape" }
+      ]
+    },
+    "x-openapi": {
+      "openapi": "3.1.0",
+      "paths": {
+        "/complex/{id}": {
+          "get": {
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "string", "format": "uuid" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Returns the very JSON you are reading",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 })";
-    //hcc::Parser a{std::ifstream("C:\\Users\\hcc\\Desktop\\json.txt",std::ios::binary)};
+    hcc::Parser a{std::ifstream("/home/hcc/share/study/my/test/hcJson/json.txt",std::ios::binary)};
     /*hcc::Parser a{json};
     hcc::JsonRoot root1=a.parse();
 
@@ -268,9 +382,9 @@ int main(){
 
     /*std::cout<<"n:"<<hcc::globalMemPool.blocks.size()<<'\n';
     std::cout<<"ddddd:"<<(void*)(hcc::globalMemPool.blocks[0]->buf)<<'\n';*/
-    hcc::Parser a{json};
+    //hcc::Parser a{json};
     hcc::JsonRoot root1=a.parse();
-    
+    std::cout<<root1<<'\n';
     //hcc::globalMemPool.reset();
     /*std::cout<<"n:"<<hcc::globalMemPool.blocks.size()<<'\n';
     std::cout<<"qqqqqq:"<<(void*)(hcc::globalMemPool.blocks[0]->buf)<<'\n';*/

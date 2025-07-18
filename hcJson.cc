@@ -4,25 +4,26 @@
 #include<stdexcept>
 #include <sstream>
 #include<fstream>
+#include <charconv>
 
 
-
-hcc::MemPool parseMemPool{};
-hcc::MemPool generateMemPool{};
-hcc::MemPool globalMemPool{std::move(generateMemPool)};
+//hcc::MemPool parseMemPool{};
+//hcc::MemPool generateMemPool{};
+//hcc::MemPool globalMemPool{std::move(generateMemPool)};
+static hcc::MemPool globalMemPool{};
 using namespace hcc;
 void* JsonValue::operator new(size_t size){return globalMemPool.alloc(size);}
 JsonValue::JsonValue():_value{std::monostate{}}{}
 JsonValue::JsonValue(bool value):_value{value}{}
 JsonValue::JsonValue(int value):_value{value}{}
 JsonValue::JsonValue(double value):_value{value}{}
-JsonValue::JsonValue(std::string& value):_value{value}{}
+JsonValue::JsonValue(std::string value):_value{value}{}
 JsonValue::JsonValue(const char* s):_value{std::string{s}}{}
 JsonValue::JsonValue(Array value):_value{std::move(value)}{}
 JsonValue::JsonValue(Object value):_value{std::move(value)}{}
 JsonValue::JsonValue(JsonValue&& value):_value{std::move(value._value)}{}
-void JsonValue::operator=(const std::string& value){_value=value;}
-void JsonValue::operator=(const char* value){_value=std::string{value};}
+void JsonValue::operator=(const std::string& value){_value=value;std::cout<<"==1";}
+void JsonValue::operator=(const char* value){_value=std::string{value};std::cout<<"==2";}
 void JsonValue::operator=(const int& value){_value=value;}
 void JsonValue::operator=(const bool& value){_value=value;}
 void JsonValue::operator=(const double& value){_value=value;}
@@ -38,9 +39,10 @@ void JsonValue::operator=(JsonValue&& value){
     _value=std::move(value._value);
 }
 JsonValue::~JsonValue()=default;
-TokenAnalyzer::TokenAnalyzer(const std::string_view& str):_jsonStr{str},_pos{0}{}
-void TokenAnalyzer::operator=(const std::string_view& str){
+TokenAnalyzer::TokenAnalyzer(std::string_view str):_jsonStr{str},_pos{0},_strSize{str.size()}{}
+void TokenAnalyzer::operator=(std::string_view str){
     _jsonStr=str;
+    _strSize=_jsonStr.size();
     _pos=0;
 }
 TokenAnalyzer::~TokenAnalyzer()=default;
@@ -90,7 +92,6 @@ void* MemPool::alloc(size_t n){
         }
         void* ret = ptr;
         ptr += n;
-        //std::cout<<"alloc vector size:"<<blocks.size()<<'\n';
         return ret;
 }
 void MemPool::reset(){
@@ -100,11 +101,11 @@ void MemPool::reset(){
 Token TokenAnalyzer::getNextToken(){
     skipSpace();//先跳过所有的空白字符
     //再判断此时的_pos是否已经出界
-    if(_pos>=_jsonStr.size())return Token{TOKEN_STRING,""};
+    if(_pos>=_jsonStr.size())return Token{TOKEN_STRING,std::string_view{""}};
     char c=_jsonStr[_pos];
     //当token是单字符
     if(c=='{'||c=='}'||c=='['||c==']'||c==','||c==':'){
-        std::string s{_jsonStr[_pos]};
+        std::string_view s{&_jsonStr[_pos],1};
         positionAdd();
         return Token{TOKEN_SYMBOL,s};
     }
@@ -112,19 +113,19 @@ Token TokenAnalyzer::getNextToken(){
     if(c=='n'||c=='f'||c=='t'){
         size_t start=_pos;
         while(isalpha(_jsonStr[_pos]))positionAdd();
-        std::string s{_jsonStr,start,_pos-start};
-        return Token{TOKEN_LITERAL,s};
+        
+        return Token{TOKEN_LITERAL,_jsonStr.substr(start,_pos-start)};
     }
     //当token是数字时,那么一定是以数字或者'-'号或者'.'开头的
     if(isdigit(c)||c=='-'||c=='.'){
-        std::string s=extractNumber();
-        return Token{TOKEN_LITERAL,s};
+        
+        return Token{TOKEN_LITERAL,extractNumber()};
     }
     //最后是解析字符串,字符串以"开头
     if(c=='"'){
-        std::string s=extractString();
+        //std::string oo=extractString();
+        std::string_view s=extractString();
         positionAdd();
-        
         return Token{TOKEN_STRING,s};
     }else{
         std::cout<<"type error:"<<c<<'\n';
@@ -144,7 +145,7 @@ void TokenAnalyzer::positionAdd(){
     ++_pos;
 }
 bool TokenAnalyzer::outRange(){
-    if(_pos>=_jsonStr.size())return true;
+    if(_pos>=_strSize)return true;
     return false;
 }
 //数字有[123,-456,0.123,.456,1.23e10,-4.56E-10]这些表达方式，但是暂时不考虑.456这种形式
@@ -153,7 +154,7 @@ bool TokenAnalyzer::outRange(){
     第三部分是小数点'.',第四部分是小数部分,第五部分是指数e,E，第六部分
     是指数后面的'-'号，第七部分是指数或者'-'号后面的数字部分
 */
-std::string TokenAnalyzer::extractNumber(){
+std::string_view TokenAnalyzer::extractNumber(){
     size_t start_pos=_pos;//记录下一开始的pos
     //如果说数字的第一个位置上放的是'-'，那么可以直接跳过
     if(!outRange()&&_jsonStr[_pos]=='-')positionAdd();
@@ -172,13 +173,14 @@ std::string TokenAnalyzer::extractNumber(){
         }
         while(!outRange()&&isdigit(_jsonStr[_pos]))positionAdd();
     }
-    return std::string{_jsonStr,start_pos,_pos-start_pos};
+    return _jsonStr.substr(start_pos,_pos-start_pos);
+    //return std::string_view{_jsonStr,start_pos,_pos-start_pos};
 }
 /*
 提取字符串有一个限制，当字符串中含有'\'这个转义符时，可能会发生转义，所以我们需要对这些转义符进行额外处理
 */
-std::string TokenAnalyzer::extractString(){
-    positionAdd();
+std::string_view TokenAnalyzer::extractString(){
+    /*positionAdd();
     std::string result;
     bool escape=false;//转义状态标识符
     while(!outRange()){
@@ -210,6 +212,24 @@ std::string TokenAnalyzer::extractString(){
         }
         positionAdd();
     }
+    return "";*/
+    positionAdd();
+    //std::string result;
+    bool escape=false;//转义状态标识符
+    size_t start=_pos;
+    while(!outRange()){
+        char c=_jsonStr[_pos];
+        if(escape){
+            escape=false;
+        }
+        else if(c=='"'){
+            return _jsonStr.substr(start,_pos-start);
+        }
+        else if(c=='\\'){
+            escape=true;
+        }
+        positionAdd();
+    }
     return "";
 }
 //将下一个token赋值给_curToken
@@ -218,7 +238,7 @@ Token Parser::nextToken(){
     return _curToken;
 }
 
-Parser::Parser(const std::string& jsonStr):_tokenAnalyzer{jsonStr}{
+Parser::Parser(std::string_view jsonStr):_tokenAnalyzer{jsonStr}{
     //初始化完成后立即获取第一个token内容
     nextToken();
     if(_curToken.getValue()!="{"){
@@ -233,10 +253,9 @@ Parser::Parser(std::ifstream&& file){
     
     char ch;
     while(file.get(ch)){
-        _fileContent+=ch;
+        _fileContentStr+=ch;
     }
-    
-    _tokenAnalyzer=_fileContent;
+    _tokenAnalyzer=_fileContentStr;
     file.close();
     nextToken();
     if(_curToken.getValue()!="{"){
@@ -244,12 +263,12 @@ Parser::Parser(std::ifstream&& file){
     }
 }
 std::unique_ptr<JsonValue> Parser::parse(){
-    generateMemPool=std::move(globalMemPool);
+    /*generateMemPool=std::move(globalMemPool);
     globalMemPool=std::move(parseMemPool);
-    globalMemPool.reset();
+    globalMemPool.reset();*/
     std::unique_ptr<JsonValue> ptr=parseValue();
-    parseMemPool=std::move(globalMemPool);
-    globalMemPool=std::move(generateMemPool);
+    /*parseMemPool=std::move(globalMemPool);
+    globalMemPool=std::move(generateMemPool);*/
     return std::move(ptr);
 }
 //解析json获取值部分
@@ -284,35 +303,43 @@ std::unique_ptr<JsonValue> Parser::parseValue(){
     }
     //默认为字符串
     else if(_curToken.getType()==TOKEN_STRING){
-        std::string str=_curToken.getValue();
+        std::string s{_curToken.getValue()};
         nextToken();
-        return std::make_unique<JsonValue>(str);
+
+        return std::make_unique<JsonValue>(s);
     }
     else{
         throw std::runtime_error("the char is not correct");
     }
 }
 //消费掉当前expectedToken，并且将下一个token赋值给_curToken，那么能起到一个字符串检查和_curToken更新的作用
-void Parser::consume(const std::string& expectedToken){
+void Parser::consume(std::string_view expectedToken){
     
     if(expectedToken!=_curToken.getValue()){
-        std::string error=std::string("expectedToken is not match _curToken: ")+std::string("expected \"")+expectedToken+std::string("\" but the _curToken is \"")+_curToken.getValue()+std::string("\"");
+        std::string error=std::string("expectedToken is not match _curToken: ")+std::string("expected \"")+std::string(expectedToken)+std::string("\" but the _curToken is \"")+std::string(_curToken.getValue())+std::string("\"");
         throw std::runtime_error(error);
     }
     nextToken();
 }
 
 std::unique_ptr<JsonValue> Parser::parseNumber(){
-    std::string num_str=_curToken.getValue();
+    std::string num_str{_curToken.getValue()};
     nextToken();
     //先解析为int类型，然后如果不符合就解析为double类型
     size_t size=0;
-    int num=std::stoi(num_str,&size);
+    int num=0;
+    auto [ptr,ec]=std::from_chars(num_str.data(),num_str.data()+num_str.size(),num);
+    if (ec == std::errc::invalid_argument) {
+        std::cout << "invalid_argument" << std::endl;
+    } /*else if (ec == std::errc::result_out_of_range) {
+        std::cout << "result_out_of_range" << std::endl;
+    }*/
+    
     if(size==num_str.size()&&num>=std::numeric_limits<int>::min()&&num<=std::numeric_limits<int>::max()){
         return std::make_unique<JsonValue>(num);
     }
     double db_num=std::stod(num_str);
-
+    
     return std::make_unique<JsonValue>(db_num);
 }
 std::unique_ptr<JsonValue> Parser::parseObject(){
@@ -331,7 +358,7 @@ std::unique_ptr<JsonValue> Parser::parseObject(){
                 //必须要求键是string类型的
                 throw std::runtime_error("the key is not a string");
             }
-            std::string key=_curToken.getValue();
+            std::string key{_curToken.getValue()};
             nextToken();
             consume(":");
             std::unique_ptr<JsonValue> value=parseValue();
@@ -356,7 +383,6 @@ JsonValue& JsonObject::operator[](const std::string& str){
     auto it = _obj.find(str);
     if (it == _obj.end()) {
         //键不存在就插入一个新的空JsonValue
-        //std::cout<<"insert so make_unique\n";
         _obj[str] = std::make_unique<JsonValue>();
         return *_obj[str];
     }

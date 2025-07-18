@@ -53,8 +53,8 @@ namespace hcc{
             return *this;
         }
     public:
-        void* alloc(size_t n);
-        void reset();
+        inline void* alloc(size_t n);
+        inline void reset();
     };
     //MemPool globalMemPool;
     /*inline MemPool parseMemPool{};
@@ -72,9 +72,9 @@ namespace hcc{
         JsonObject()=default;
         JsonObject(Object&& right);
     public:
-        Object transferAuthority();
+        inline Object transferAuthority();
         size_t size()const{return _obj.size();}
-        JsonValue& operator[](const std::string& str);
+        inline JsonValue& operator[](const std::string& str);
         auto begin()  -> decltype(_obj.begin()) {return _obj.begin();}
 
         auto end()  -> decltype(_obj.end()) {return _obj.end();}
@@ -87,13 +87,13 @@ namespace hcc{
     private:
         Array _array;
     public:
-        Array transferAuthority();
+        inline Array transferAuthority();
         JsonArray(const Array&)=delete;
         JsonArray(Array&& right);
         JsonArray()=default;
         ~JsonArray();
     public:
-        JsonValue& operator[](size_t index);
+        inline JsonValue& operator[](size_t index);
         void push_back(JsonValue&& value){
             _array.push_back(std::make_unique<JsonValue>(std::move(value)));
         }
@@ -119,8 +119,8 @@ namespace hcc{
             _array.push_back(std::make_unique<JsonValue>(std::move(value._array)));
         }
         //void pop_back();
-        auto begin() ->decltype(_array.begin()){return _array.begin();}
-        auto end() ->decltype(_array.end()){return _array.end();}
+        inline auto begin() ->decltype(_array.begin()){return _array.begin();}
+        inline auto end() ->decltype(_array.end()){return _array.end();}
     };
     enum JsonValueTypeEnum{
         TYPE_NULL=0,
@@ -141,25 +141,25 @@ namespace hcc{
         explicit JsonValue(bool value);
         explicit JsonValue(int value);
         explicit JsonValue(double value);
-        explicit JsonValue(std::string& value);
+        explicit JsonValue(std::string value);
         explicit JsonValue(const char* s);
         explicit JsonValue(Array value);
         explicit JsonValue(Object value);
         explicit JsonValue(JsonValue&& value);
         ~JsonValue();
     public:
-        void operator=(const std::string& value);
-        void operator=(const char* value);
-        void operator=(const int& value);
-        void operator=(const bool& value);
-        void operator=(const double& value);
-        void operator=(Array&& value);
-        void operator=(Object&& value);
-        void operator=(JsonObject&& value);
-        void operator=(JsonArray&& value);
-        void operator=(JsonValue&& value);
+        inline void operator=(const std::string& value);
+        inline void operator=(const char* value);
+        inline void operator=(const int& value);
+        inline void operator=(const bool& value);
+        inline void operator=(const double& value);
+        inline void operator=(Array&& value);
+        inline void operator=(Object&& value);
+        inline void operator=(JsonObject&& value);
+        inline void operator=(JsonArray&& value);
+        inline void operator=(JsonValue&& value);
         void* operator new(size_t size);
-        void operator delete(void*){}
+        inline void operator delete(void*){}
     public:
         bool isNull()const{return std::holds_alternative<std::monostate>(_value);}
         bool isBool()const{return std::holds_alternative<bool>(_value);}
@@ -170,7 +170,7 @@ namespace hcc{
         bool isObject()const{return std::holds_alternative<Object>(_value);}
     public:
         //获取到当前_value实际类型
-        JsonValueTypeEnum theType()const;
+        inline JsonValueTypeEnum theType()const;
         std::string getTypeString()const;
     public:
         std::string toString()const{
@@ -178,7 +178,35 @@ namespace hcc{
                 std::string error_str=std::string{"the value's type is not std::string but "}+getTypeString();
                 throw std::runtime_error(error_str);
             }
-            return std::get<std::string>(_value);
+            std::string s=std::get<std::string>(_value);
+            bool escape=false;
+            std::string result="";
+            for(size_t i=0;i<s.size();i++){
+                char c=s[i];
+                if(escape){
+                    switch (c)
+                    {
+                    case '\\':result+='\\';break;
+                    case '"':result+='"';break;
+                    case '/':result+='/';break;
+                    case 'b':result+='\b';break;
+                    case 'f':result+='\f';break;
+                    case 'n':result+='\n';break;
+                    case 'r':result+='\r';break;
+                    case 't':result+='\t';break; 
+                    case 'u':std::cout<<"has \\u\n";     
+                    default:result+="\\";result+=c;break;
+                    }
+                    escape=false;
+                }
+                else if(c=='\\'){
+                    escape=true;
+                }
+                else{
+                    result+=c;
+                }
+            }
+            return result;
         }
         std::string toNull()const{
             if(!isNull()){
@@ -229,62 +257,65 @@ namespace hcc{
         TOKNE_INIT,
         TOKEN_SYMBOL
     };
+
     class Token{
     private:
         tokenType _type;
-        std::string _value;
+        std::string_view _value;
     public:
-        Token(tokenType type,std::string value):_type{type},_value{value}{}
+        Token(tokenType type,std::string_view value):_type{type},_value{value}{}
         Token():_type{TOKNE_INIT},_value{""}{};
     public:
-        bool empty()const {return _value.empty();}
-        std::string getValue()const {return _value;}
-        tokenType getType()const {return _type;}
+        inline bool empty()const {return _value.empty();}
+        inline std::string_view getValue()const {return _value;}
+        inline tokenType getType()const {return _type;}
     };
 
     //将json字符串中的有意义词分离开
     class TokenAnalyzer{
-    private:
+    public:
         std::string_view _jsonStr;
+        size_t _strSize;
         size_t _pos;//记录当前位置
     public:
-        explicit TokenAnalyzer(const std::string_view& str);
+        explicit TokenAnalyzer(std::string_view str);
         TokenAnalyzer()=default;
         ~TokenAnalyzer();
     public:
-       void operator=(const std::string_view& str);
-       std::string_view getString(){return _jsonStr;}
+       inline void operator=(std::string_view str);
+       inline std::string_view getString(){return _jsonStr;}
     public:
-        Token getNextToken();//得到下一个token
-        void skipSpace();
-        void positionAdd();//pos位置+1
-        std::string extractNumber();//提取json字符串中的数字
-        bool outRange();
-        std::string extractString();//提取json中的字符串
+        inline Token getNextToken();//得到下一个token
+        inline void skipSpace();
+        inline void positionAdd();//pos位置+1
+        std::string_view extractNumber();//提取json字符串中的数字
+        inline bool outRange();
+        std::string_view extractString();//提取json中的字符串
     };
 
 
 
     class Parser{
     private:
-        std::string _fileContent;
+        //std::string_view _fileContent;
+        std::string _fileContentStr;
         TokenAnalyzer _tokenAnalyzer;//解析器包含一个token提词器完成token的分离提取
         Token _curToken;//还需要一个Token容器记录下当前token内容
     public:
         std::unique_ptr<JsonValue> parse();
         std::unique_ptr<JsonValue> parseValue();
     public:
-        explicit Parser(const std::string& jsonStr);
+        explicit Parser(std::string_view jsonStr);
         //文件初始化
         Parser(std::ifstream&& file);
 
     public:
-        Token nextToken();
+        inline Token nextToken();
         std::unique_ptr<JsonValue> parseObject();
         std::unique_ptr<JsonValue> parseArray();
         std::unique_ptr<JsonValue> parseNumber();
         
-        void consume(const std::string& expected);
+        inline void consume(std::string_view expected);
     };
 
     class Printer;
