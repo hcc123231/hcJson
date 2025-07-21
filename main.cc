@@ -236,7 +236,7 @@ std::string json=R"({
   "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
   "meta": {
     "created": "2025-07-18T14:33:27.142Z",
-    "lastEvent": 1750246407183,
+    "lastEvent": 17502,
     "version": [2, 5, 0, "rc.4"],
     "authors": [
       { "name": "5434", "email": "ivanov@example.com", "lang": "ru-RU" },
@@ -252,8 +252,8 @@ std::string json=R"({
           "level2": {
             "level3": {
               "uuidMap": {
-                "550e8400-e29b-41d4-a716-446655440000": { "weight": 3.141592653589793 },
-                "6ba7b810-9dad-11d1-80b4-00c04fd430c8": { "weight": 2.718281828459045 }
+                "550e8400-e29b-41d4-a716-446655440000": { "weight": 3.1415 },
+                "6ba7b810-9dad-11d1-80b4-00c04fd430c8": { "weight": 2.718 }
               }
             }
           }
@@ -265,7 +265,7 @@ std::string json=R"({
       "type": "FeatureCollection",
       "features": [
         {
-          "type": "Feature",
+          "type": "我的发",
           "geometry": {
             "type": "Point",
             "coordinates": [139.6917, 35.6895, 42.6]
@@ -294,7 +294,7 @@ std::string json=R"({
       [0, 1, 0],
       [0, 0, 1]
     ],
-    "hugeInt": 1234567890123456789012345678901234567890,
+    "hugeInt": 123456,
     "floats": { "positive": 1e+42, "negative": -1.23e-45, "nan": "NaN", "inf": "Infinity" },
     "bin": {
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -311,8 +311,8 @@ std::string json=R"({
   "extensions": {
     "x-custom-telemetry": {
       "events": [
-        { "t": 1750246407183, "type": "click", "pos": [1024, 768] },
-        { "t": 1750246408199, "type": "keydown", "key": "Escape" }
+        { "t": 175024, "type": "click", "pos": [1024, 768] },
+        { "t": 17502, "type": "keydown", "key": "Escape" }
       ]
     },
     "x-openapi": {
@@ -344,9 +344,10 @@ std::string json=R"({
     }
   }
 })";
-    hcc::Parser a{std::ifstream("/home/hcc/share/study/my/test/hcJson/json.txt",std::ios::binary)};
-    /*hcc::Parser a{json};
-    hcc::JsonRoot root1=a.parse();
+    //hcc::Parser a{std::ifstream("/home/hcc/share/study/my/test/hcJson/json.txt",std::ios::binary)};
+    hcc::Parser a{json};
+    //std::cout<<sizeof(hcc::JsonValue)<<'\n';
+    /*hcc::JsonRoot root1=a.parse();
 
     auto end = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration<double, std::milli>(end - start).count();
@@ -377,14 +378,24 @@ std::string json=R"({
     obj_root["field2"]=std::move(arr2);
     
 
-    hcc::JsonRoot root=std::move(obj_root);*/
+    hcc::JsonRoot root=std::move(obj_root);
+    std::string s=root.toJson();
+    std::cout<<s<<'\n';*/
+
     //0x2d66b093f20
 
     /*std::cout<<"n:"<<hcc::globalMemPool.blocks.size()<<'\n';
     std::cout<<"ddddd:"<<(void*)(hcc::globalMemPool.blocks[0]->buf)<<'\n';*/
     //hcc::Parser a{json};
     hcc::JsonRoot root1=a.parse();
-    std::cout<<root1<<'\n';
+    /*if(root1.isObject()){
+      hcc::JsonObject obj1=root1.toObject();
+      if(obj1["id"].isString()){
+        std::string s=obj1["id"].toString();
+        std::cout<<s<<'\n';
+      }
+    }*/
+    //std::cout<<root1<<'\n';
     //hcc::globalMemPool.reset();
     /*std::cout<<"n:"<<hcc::globalMemPool.blocks.size()<<'\n';
     std::cout<<"qqqqqq:"<<(void*)(hcc::globalMemPool.blocks[0]->buf)<<'\n';*/
@@ -393,7 +404,7 @@ std::string json=R"({
     auto end = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration<double, std::milli>(end - start).count();
     std::cout << "Elapsed: " << elapsed << " ms\n";
-
+    
     /*std::string s=root.toJson();
     std::cout<<s<<'\n';*/
     return 0;

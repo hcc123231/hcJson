@@ -53,6 +53,12 @@
         "variant": "cpp",
         "bit": "cpp",
         "*.inc": "cpp",
-        "charconv": "cpp"
+        "charconv": "cpp",
+        "cassert": "cpp",
+        "cerrno": "cpp",
+        "cfloat": "cpp",
+        "ciso646": "cpp",
+        "climits": "cpp",
+        "queue": "cpp"
     }
 }

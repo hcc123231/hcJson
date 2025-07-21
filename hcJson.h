@@ -5,13 +5,14 @@
 #include<string>
 #include <variant>
 #include <memory> 
+
 /*
 凡是涉及到将JsonObject或者JsonArray赋值到另一个对象的操作时，都要使用std::move将原本的对象转为右值
-暂不支持中文以及多字节表示的字符
-记得使用-std=c+17来编译
+暂不支持\u
+记得使用-std=c+17 -O2来编译
 因为本项目的目的就是提高效率并且受限于g++编译器的版本，所以选择使用unique_ptr作为json值的类型，那么必然导致
 不可拷贝，转而使用移动，所以可能会出现值已被移动但是用户还要使用这个变量的情况，下面两个注意点牢记
-在任何toObject和toArray函数调用后谨慎使用std::cout<<JsonRoot;
+在任何toObject,toArray,toString等等函数调用后谨慎使用std::cout<<JsonRoot;
 在toJson函数调用后谨慎使用JsonRoot
 */
 namespace hcc{
@@ -23,43 +24,7 @@ namespace hcc{
     class JsonValue;
     using Array = std::vector<std::unique_ptr<JsonValue>>;
     using Object = std::unordered_map<std::string, std::unique_ptr<JsonValue>>;
-    
-    class MemPool{
-    public:
-        static constexpr size_t blockSize=64*1024;
-        struct Block{
-            alignas(max_align_t) char buf[blockSize];
-            size_t used=0;
-        };
-        std::vector<std::unique_ptr<Block>> blocks;
-        char* ptr=nullptr;
-        char* end=nullptr;
-    public:
-        MemPool()=default;
-        MemPool(MemPool&& oth):blocks(std::move(oth.blocks)),
-          ptr(oth.ptr),
-          end(oth.end){
-            oth.ptr = nullptr;
-            oth.end = nullptr;
-        }
-        MemPool& operator=(MemPool&& oth)noexcept{
-            if(this!=&oth){
-                blocks=std::move(oth.blocks);
-                ptr=oth.ptr;
-                end=oth.end;
-                oth.ptr=nullptr;
-                oth.end=nullptr;
-            }
-            return *this;
-        }
-    public:
-        inline void* alloc(size_t n);
-        inline void reset();
-    };
-    //MemPool globalMemPool;
-    /*inline MemPool parseMemPool{};
-    inline MemPool generateMemPool{};
-    inline MemPool globalMemPool=std::move(generateMemPool);*/
+
     class JsonObject{
         friend class JsonValue;
         friend class JsonArray;
@@ -74,7 +39,7 @@ namespace hcc{
     public:
         inline Object transferAuthority();
         size_t size()const{return _obj.size();}
-        inline JsonValue& operator[](const std::string& str);
+        JsonValue& operator[](const std::string& str);
         auto begin()  -> decltype(_obj.begin()) {return _obj.begin();}
 
         auto end()  -> decltype(_obj.end()) {return _obj.end();}
@@ -148,18 +113,18 @@ namespace hcc{
         explicit JsonValue(JsonValue&& value);
         ~JsonValue();
     public:
-        inline void operator=(const std::string& value);
-        inline void operator=(const char* value);
-        inline void operator=(const int& value);
-        inline void operator=(const bool& value);
-        inline void operator=(const double& value);
-        inline void operator=(Array&& value);
-        inline void operator=(Object&& value);
-        inline void operator=(JsonObject&& value);
-        inline void operator=(JsonArray&& value);
-        inline void operator=(JsonValue&& value);
+        inline void operator=(const std::string& value){_value=value;}
+        inline void operator=(const char* value){_value=std::string{value};}
+        inline void operator=(const int& value){_value=value;}
+        inline void operator=(const bool& value){_value=value;}
+        inline void operator=(const double& value){_value=value;}
+        inline void operator=(Array&& value){_value=std::move(value);}
+        inline void operator=(Object&& value){_value=std::move(value);}
+        inline void operator=(JsonObject&& value){_value=std::move(value._obj);}
+        inline void operator=(JsonArray&& value){_value=std::move(value._array);}
+        inline void operator=(JsonValue&& value){_value=std::move(value._value);}
         void* operator new(size_t size);
-        inline void operator delete(void*){}
+        void operator delete(void* ptr);
     public:
         bool isNull()const{return std::holds_alternative<std::monostate>(_value);}
         bool isBool()const{return std::holds_alternative<bool>(_value);}
@@ -282,8 +247,9 @@ namespace hcc{
         TokenAnalyzer()=default;
         ~TokenAnalyzer();
     public:
-       inline void operator=(std::string_view str);
-       inline std::string_view getString(){return _jsonStr;}
+       void operator=(const std::string_view str);
+       void operator=(std::string&& str);
+       std::string_view getString(){return _jsonStr;}
     public:
         inline Token getNextToken();//得到下一个token
         inline void skipSpace();
@@ -297,7 +263,6 @@ namespace hcc{
 
     class Parser{
     private:
-        //std::string_view _fileContent;
         std::string _fileContentStr;
         TokenAnalyzer _tokenAnalyzer;//解析器包含一个token提词器完成token的分离提取
         Token _curToken;//还需要一个Token容器记录下当前token内容
@@ -346,11 +311,10 @@ namespace hcc{
     public:
         std::unique_ptr<JsonValue> _value;
         Printer(JsonRoot& root);
-        std::unique_ptr<JsonValue> print();
-        std::unique_ptr<JsonValue> print_value(std::unique_ptr<JsonValue> value,size_t n);
-        void pspace_count(size_t n);
+        std::unique_ptr<JsonValue> print(std::ostringstream& oss);
+        std::unique_ptr<JsonValue> print_value(std::unique_ptr<JsonValue> value,size_t n,std::ostringstream& oss);
+        void pspace_count(size_t n,std::ostringstream& oss);
     };
-
     
 }
 

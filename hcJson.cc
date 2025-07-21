@@ -5,14 +5,10 @@
 #include <sstream>
 #include<fstream>
 #include <charconv>
-
-
-//hcc::MemPool parseMemPool{};
-//hcc::MemPool generateMemPool{};
-//hcc::MemPool globalMemPool{std::move(generateMemPool)};
-static hcc::MemPool globalMemPool{};
+#include"memPool.h"
 using namespace hcc;
-void* JsonValue::operator new(size_t size){return globalMemPool.alloc(size);}
+void* JsonValue::operator new(size_t size){return gMemPool().alloc();}
+void JsonValue::operator delete(void* ptr){gMemPool().dealloc(ptr);}
 JsonValue::JsonValue():_value{std::monostate{}}{}
 JsonValue::JsonValue(bool value):_value{value}{}
 JsonValue::JsonValue(int value):_value{value}{}
@@ -22,28 +18,20 @@ JsonValue::JsonValue(const char* s):_value{std::string{s}}{}
 JsonValue::JsonValue(Array value):_value{std::move(value)}{}
 JsonValue::JsonValue(Object value):_value{std::move(value)}{}
 JsonValue::JsonValue(JsonValue&& value):_value{std::move(value._value)}{}
-void JsonValue::operator=(const std::string& value){_value=value;std::cout<<"==1";}
-void JsonValue::operator=(const char* value){_value=std::string{value};std::cout<<"==2";}
-void JsonValue::operator=(const int& value){_value=value;}
-void JsonValue::operator=(const bool& value){_value=value;}
-void JsonValue::operator=(const double& value){_value=value;}
-void JsonValue::operator=(Array&& value){_value=std::move(value);}
-void JsonValue::operator=(Object&& value){_value=std::move(value);}
-void JsonValue::operator=(JsonObject&& value){
-    _value=std::move(value._obj);
-}
-void JsonValue::operator=(JsonArray&& value){
-    _value=std::move(value._array);
-}
-void JsonValue::operator=(JsonValue&& value){
-    _value=std::move(value._value);
-}
 JsonValue::~JsonValue()=default;
 TokenAnalyzer::TokenAnalyzer(std::string_view str):_jsonStr{str},_pos{0},_strSize{str.size()}{}
-void TokenAnalyzer::operator=(std::string_view str){
+void TokenAnalyzer::operator=(const std::string_view str){
     _jsonStr=str;
     _strSize=_jsonStr.size();
     _pos=0;
+}
+void TokenAnalyzer::operator=(std::string&& str){
+    if(str!=_jsonStr){
+        std::string_view sv{str};
+        _jsonStr=std::move(sv);
+        _strSize=_jsonStr.size();
+        _pos=0;
+    }
 }
 TokenAnalyzer::~TokenAnalyzer()=default;
 
@@ -82,22 +70,7 @@ std::string JsonValue::getTypeString()const{
     }
     return "type error";
 }
-void* MemPool::alloc(size_t n){
-    n = (n + alignof(max_align_t) - 1)
-            & ~(alignof(max_align_t) - 1);
-        if (ptr + n > end) {
-            blocks.emplace_back(std::make_unique<Block>());
-            ptr = blocks.back()->buf;
-            end = ptr + blockSize;
-        }
-        void* ret = ptr;
-        ptr += n;
-        return ret;
-}
-void MemPool::reset(){
-    blocks.clear();
-    ptr = end = nullptr;
-}
+
 Token TokenAnalyzer::getNextToken(){
     skipSpace();//先跳过所有的空白字符
     //再判断此时的_pos是否已经出界
@@ -174,7 +147,6 @@ std::string_view TokenAnalyzer::extractNumber(){
         while(!outRange()&&isdigit(_jsonStr[_pos]))positionAdd();
     }
     return _jsonStr.substr(start_pos,_pos-start_pos);
-    //return std::string_view{_jsonStr,start_pos,_pos-start_pos};
 }
 /*
 提取字符串有一个限制，当字符串中含有'\'这个转义符时，可能会发生转义，所以我们需要对这些转义符进行额外处理
@@ -250,12 +222,13 @@ Parser::Parser(std::ifstream&& file){
     if(!file.is_open()){
         throw std::runtime_error("file can not be opened");
     }
+    file.seekg(0,std::ios::end);
+    size_t len=file.tellg();
+    file.seekg(0,std::ios::beg);
     
-    char ch;
-    while(file.get(ch)){
-        _fileContentStr+=ch;
-    }
-    _tokenAnalyzer=_fileContentStr;
+    _fileContentStr.reserve(len);
+    _fileContentStr.assign(std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>());
+    _tokenAnalyzer=std::move(_fileContentStr);
     file.close();
     nextToken();
     if(_curToken.getValue()!="{"){
@@ -263,12 +236,7 @@ Parser::Parser(std::ifstream&& file){
     }
 }
 std::unique_ptr<JsonValue> Parser::parse(){
-    /*generateMemPool=std::move(globalMemPool);
-    globalMemPool=std::move(parseMemPool);
-    globalMemPool.reset();*/
     std::unique_ptr<JsonValue> ptr=parseValue();
-    /*parseMemPool=std::move(globalMemPool);
-    globalMemPool=std::move(generateMemPool);*/
     return std::move(ptr);
 }
 //解析json获取值部分
@@ -331,9 +299,9 @@ std::unique_ptr<JsonValue> Parser::parseNumber(){
     auto [ptr,ec]=std::from_chars(num_str.data(),num_str.data()+num_str.size(),num);
     if (ec == std::errc::invalid_argument) {
         std::cout << "invalid_argument" << std::endl;
-    } /*else if (ec == std::errc::result_out_of_range) {
+    } else if (ec == std::errc::result_out_of_range) {
         std::cout << "result_out_of_range" << std::endl;
-    }*/
+    }
     
     if(size==num_str.size()&&num>=std::numeric_limits<int>::min()&&num<=std::numeric_limits<int>::max()){
         return std::make_unique<JsonValue>(num);
@@ -407,7 +375,6 @@ void JsonRoot::operator=(std::unique_ptr<JsonValue>&& right){
 }
 std::string JsonRoot::toJson(){
     std::string s=toJsonFunc(std::move(_root));
-    globalMemPool.reset();
     return s;
 }
 std::string JsonRoot::toJsonFunc(std::unique_ptr<JsonValue> value){
@@ -518,116 +485,118 @@ std::string JsonRoot::toJsonFunc(std::unique_ptr<JsonValue> value){
     return s;
 }
 #define SPACE_COUNT 4
-std::unique_ptr<JsonValue> Printer::print(){
-    return print_value(std::move(_value),SPACE_COUNT);
+std::unique_ptr<JsonValue> Printer::print(std::ostringstream& oss){
+    return print_value(std::move(_value),SPACE_COUNT,oss);
 }
 std::ostream& hcc::operator<<(std::ostream& os,JsonRoot& jroot){
     hcc::Printer printer=jroot;
-    jroot=printer.print();
+    std::ostringstream oss;
+    jroot=printer.print(oss);
+    os<<oss.str();
     return os;
 }
 
-void Printer::pspace_count(size_t n){
-    for(int i=0;i<n;i++)std::cout<<' ';
+void Printer::pspace_count(size_t n,std::ostringstream& oss){
+    for(int i=0;i<n;i++)oss<<' ';
 }
 #define OBJECT_SELECT() \
     do{\
         if(std::next(it)!=root_obj.end()){\
-            std::cout<<",\n";\
-            pspace_count(n);\
+            oss<<",\n";\
+            pspace_count(n,oss);\
         }\
         else{\
-            std::cout<<"\n";\
-            pspace_count(n-SPACE_COUNT);\
+            oss<<"\n";\
+            pspace_count(n-SPACE_COUNT,oss);\
         }\
     }while(0);
 #define ARRAY_SELECT() \
     do{\
         if(std::next(i)!=array.end()){\
-            std::cout<<",\n";\
-            pspace_count(n);\
+            oss<<",\n";\
+            pspace_count(n,oss);\
         }\
         else{\
-            std::cout<<"\n";\
-            pspace_count(n-SPACE_COUNT);\
+            oss<<"\n";\
+            pspace_count(n-SPACE_COUNT,oss);\
         }\
     }while(0);
 
 Object JsonObject::transferAuthority(){
     return std::move(_obj);
 }
-std::unique_ptr<JsonValue> Printer::print_value(std::unique_ptr<JsonValue> value,size_t n){
+std::unique_ptr<JsonValue> Printer::print_value(std::unique_ptr<JsonValue> value,size_t n,std::ostringstream& oss){
     if(value->isObject()){
         JsonObject root_obj=value->toObject();
-        std::cout<<"{\n";
-        pspace_count(n);
+        oss<<"{\n";
+        pspace_count(n,oss);
         for(auto it=root_obj.begin();it!=root_obj.end();it++){
-            std::cout<<"\""<<it->first<<"\""<<": ";
+            oss<<"\""<<it->first<<"\""<<": ";
             if(it->second->isObject()){
-                it->second=print_value(std::move(it->second),n+SPACE_COUNT);
+                it->second=print_value(std::move(it->second),n+SPACE_COUNT,oss);
                 OBJECT_SELECT();
             }
             else if(it->second->isArray()){
-                it->second=print_value(std::move(it->second),n+SPACE_COUNT);
+                it->second=print_value(std::move(it->second),n+SPACE_COUNT,oss);
                 OBJECT_SELECT();
             }else if(it->second->isInt()){
-                std::cout<<it->second->toInt();
+                oss<<it->second->toInt();
                 OBJECT_SELECT();
             }else if(it->second->isDouble()){
-                std::cout<<it->second->toDouble();
+                oss<<it->second->toDouble();
                 OBJECT_SELECT();
             }
             else if(it->second->isBool()){
-                std::cout<<(it->second->toBool()==1?"true":"false");
+                oss<<(it->second->toBool()==1?"true":"false");
                 OBJECT_SELECT();
             }
             else if(it->second->isString()){
-                std::cout<<"\""<<it->second->toString()<<"\"";
+                oss<<"\""<<it->second->toString()<<"\"";
                 OBJECT_SELECT();
             }else if(it->second->isNull()){
-                std::cout<<it->second->toNull();
+                oss<<it->second->toNull();
                 OBJECT_SELECT();
             }
         }
         *value=std::move(root_obj.transferAuthority());
-        std::cout<<"}";
+        oss<<"}";
     }
     else if(value->isArray()){
         JsonArray array=value->toArray();
-        std::cout<<"[\n";
-        pspace_count(n);
+        oss<<"[\n";
+        pspace_count(n,oss);
         for(auto i=array.begin();i!=array.end();i++){
             if(i->get()->isObject()){
-                *i=print_value(std::move(*i),n+SPACE_COUNT);
+                *i=print_value(std::move(*i),n+SPACE_COUNT,oss);
                 ARRAY_SELECT();
             }
             else if(i->get()->isArray()){
-                *i=print_value(std::move(*i),n+SPACE_COUNT);
+                *i=print_value(std::move(*i),n+SPACE_COUNT,oss);
                 ARRAY_SELECT();
             }
             else if(i->get()->isInt()){
-                std::cout<<i->get()->toInt();
+                oss<<i->get()->toInt();
                 ARRAY_SELECT();
             }
             else if(i->get()->isDouble()){
-                std::cout<<i->get()->toDouble();
+                oss<<i->get()->toDouble();
                 ARRAY_SELECT();
             }
             else if(i->get()->isBool()){
-                std::cout<<(i->get()->toBool()==1?"true":"false");
+                oss<<(i->get()->toBool()==1?"true":"false");
                 ARRAY_SELECT();
             }
             else if(i->get()->isString()){
-                std::cout<<"\""<<i->get()->toString()<<"\"";
+                oss<<"\""<<i->get()->toString()<<"\"";
                 ARRAY_SELECT();
             }
             else if(i->get()->isNull()){
-                std::cout<<i->get()->toNull();
+                oss<<i->get()->toNull();
                 ARRAY_SELECT();
             }
         }
         *value=std::move(array.transferAuthority());
-        std::cout<<"]";
+        oss<<"]";
     }
     return value;
 }
